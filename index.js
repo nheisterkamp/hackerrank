@@ -12,27 +12,41 @@
 //   if output then compare to output and print success
 //     compare output with max error (epsilon)
 
+// usage:
+//
+// hackerrank run <file>
+// hackerrank start <url>
+
+
+
 // Engines
-const engines = [
-    // - Javascript
-    {
+const engines = {
+    javascript: {
         main: 'main.js',
         cmd: 'node',
         args: []
     },
-    // - Bash
-    {
+    bash: {
         main: 'main.sh',
         cmd: 'bash',
         args: []
     },
-    // - Haskell
-    {
+    haskell: {
         main: 'Main.hs',
         cmd: 'runhaskell',
         args: []
+    },
+    python: {
+        main: 'main.py',
+        cmd: 'python',
+        args: []
+    },
+    python3: {
+        main: 'main.py',
+        cmd: 'python3',
+        args: []
     }
-];
+};
 
 if (Number(process.version[1]) < 6) {
     throw new Error('Use node >= v6');
@@ -43,9 +57,110 @@ const fs = require('fs'),
     spawnSync = require('child_process').spawnSync,
     _ = require('lodash'),
     glob = require('glob'),
+    request = require('request'),
+    mkdirp = require('mkdirp'),
+    AdmZip = require('adm-zip'),
+    open = require("open"),
     EPSILON = 10e-2;
 
-let src = path.resolve(process.argv[2]),
+const cmd = process.argv[2];
+
+if (cmd === 'start') {
+    let engineName = process.argv[3].toLowerCase();
+    let engine = engines[engineName];
+
+    if (!engine) {
+        throw new Error(`Engine "${engineName}" not found`);
+    }
+
+    let challenge = process.argv[4].replace(/^(.*\/)/, '').replace(/([^\w\d-].*)$/, '');
+    console.log(`Challenge: ${challenge}`);
+
+    if (!challenge) {
+        throw new Error(`No challenge found in "${process.argv[4]}`);
+    }
+
+    let base = 'https://www.hackerrank.com/rest/contests/master/challenges';
+    let restUrl = `${base}/${challenge}`;
+    let pdfUrl = `${base}/${challenge}/download_pdf?language=English`;
+    let testsUrl = `${base}/${challenge}/download_testcases`;
+
+    request(restUrl, (error, response, body) => {
+        if (error) { throw new Error(error); }
+        if (!error && response.statusCode == 200) {
+            let {
+                model
+            } = JSON.parse(body);
+
+            let tpl = _.compact([
+                model[`${engineName}_template_head`],
+                model[`${engineName}_template`],
+                model[`${engineName}_template_tail`]
+            ]).join('\n');
+
+            let onboarding = model.onboarding && model.onboarding[engineName];
+
+            if (onboarding && onboarding.solution) {
+                tpl = onboarding.solution;
+            }
+
+            let track = model.track;
+
+            let dir = path.join(process.cwd(), 'domains',
+                track.track_slug, track.slug, model.slug);
+
+            mkdirp.sync(dir);
+
+            process.stdout.write(`Project: ${dir}\n`);
+
+            let file = path.join(dir, engine.main);
+            let pdfFile = path.join(dir, 'README.pdf');
+
+            try {
+                let fileStat = fs.statSync(file);
+                if (!fileStat.size) { throw new Error(`Empty ${file}`); }
+            } catch (e) {
+                fs.writeFileSync(file, tpl);
+                process.stdout.write(`- Written: ${file}\n`);
+            }
+            open(`file://${file}`);
+
+            try {
+                let pdfStat = fs.statSync(pdfFile);
+                if (!pdfStat.size) { throw new Error(`Empty ${pdfFile}`); }
+            } catch (e) {
+                var pdfFileHandle = fs.createWriteStream(pdfFile);
+                process.stdout.write(`- Download: ${pdfUrl}\n`);
+                request(pdfUrl).pipe(pdfFileHandle).on('close', () =>
+                    process.stdout.write(`- Written: ${pdfFile}\n`));
+            }
+
+            process.stdout.write(`- Download: ${testsUrl}\n`);
+            request({
+                url: testsUrl,
+                encoding: null
+            }, (error, response, body) => {
+                if (error) { throw new Error(error); }
+                var zip = new AdmZip(body);
+
+                var zipEntries = zip.getEntries();
+                console.log('- Extracting test cases:');
+                for (var i = 0; i < zipEntries.length; i++) {
+                    console.log(`  * ${zipEntries[i].entryName}`);
+                }
+
+                zip.extractAllTo(dir, true);
+            });
+        }
+    });
+
+    return;
+} else if (cmd !== 'run') {
+    process.exit(1);
+}
+
+
+let src = path.resolve(process.argv[3]),
     srcFile = path.basename(src),
     projectDir = path.resolve(src);
 
@@ -113,7 +228,7 @@ function compare(a, b) {
 }
 
 function runOnInputFile(inputFile) {
-    process.stdout.write(`# ${path.basename(inputFile)}`);
+    process.stdout.write(`# ${path.relative(process.cwd(), inputFile)}`);
     let outputFile = inputFile.replace('/input/input', '/output/output'),
         input = fs.readFileSync(inputFile),
         output = fs.readFileSync(outputFile, 'utf-8'),
@@ -124,6 +239,8 @@ function runOnInputFile(inputFile) {
         process.stdout.write(' √\n');
     } else {
         process.stdout.write(` [WRONG]
+${inputFile}
+
 ${runOutput}
  -- should be --
 ${output}

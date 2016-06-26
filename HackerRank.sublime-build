@@ -1,3 +1,4 @@
 {
-    "cmd": ["hackerrank", "$file"]
+    "cmd": ["hackerrank", "run", "$file"],
+    "working_dir": "$folder"
 }
