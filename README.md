@@ -18,3 +18,11 @@ name/
   main.js
   main.sh
 ```
+
+
+## Commands
+
+```bash
+hackerrank start <language> <url>
+hackerrank run <path>
+```
