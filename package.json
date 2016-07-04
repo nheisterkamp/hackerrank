@@ -1,6 +1,6 @@
 {
   "name": "hackerrank",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HackerRank challenge runner",
   "main": "index.js",
   "bin": {

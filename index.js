@@ -15,7 +15,7 @@
 // usage:
 //
 // hackerrank run <file>
-// hackerrank start <url>
+// hackerrank start <language> <url>
 
 
 
@@ -24,7 +24,22 @@ const engines = {
     javascript: {
         main: 'main.js',
         cmd: 'node',
-        args: []
+        args: [],
+        src: `function processData(input) {
+    //Enter your code here
+} 
+
+process.stdin.resume();
+process.stdin.setEncoding("ascii");
+_input = "";
+process.stdin.on("data", function (input) {
+    _input += input;
+});
+
+process.stdin.on("end", function () {
+   processData(_input);
+});
+`
     },
     bash: {
         main: 'main.sh',
@@ -34,6 +49,19 @@ const engines = {
     haskell: {
         main: 'Main.hs',
         cmd: 'runhaskell',
+        args: [],
+        src: `solve :: String -> String
+solve s = s
+
+main :: IO ()
+main = do
+  input <- getContents
+  putStrLn $ solve input
+`
+    },
+    erlang: {
+        main: 'main.erl',
+        cmd: 'erl',
         args: []
     },
     python: {
@@ -88,9 +116,12 @@ if (cmd === 'start') {
     request(restUrl, (error, response, body) => {
         if (error) { throw new Error(error); }
         if (!error && response.statusCode == 200) {
-            let {
-                model
-            } = JSON.parse(body);
+            let res = JSON.parse(body);
+            let { model } = res;
+
+            if (model.languages.indexOf(engineName) === -1) {
+                throw new Error(`Language "${engineName}" not allowed for challenge`);
+            }
 
             let tpl = _.compact([
                 model[`${engineName}_template_head`],
@@ -116,6 +147,14 @@ if (cmd === 'start') {
             let file = path.join(dir, engine.main);
             let pdfFile = path.join(dir, 'README.pdf');
 
+            if (!tpl && engine.src) {
+                tpl = engine.src;
+            }
+
+            if (engineName === 'javascript') {
+                tpl += '\nmodule.exports = processData;\n'
+            }
+
             try {
                 let fileStat = fs.statSync(file);
                 if (!fileStat.size) { throw new Error(`Empty ${file}`); }
@@ -123,7 +162,11 @@ if (cmd === 'start') {
                 fs.writeFileSync(file, tpl);
                 process.stdout.write(`- Written: ${file}\n`);
             }
-            open(`file://${file}`);
+            require('child_process').exec(`subl "${dir}" "${file}"`);
+
+            if (model.body_html) {
+                fs.writeFileSync(path.join(dir, 'README.html'), model.body_html);
+            }
 
             try {
                 let pdfStat = fs.statSync(pdfFile);
@@ -131,26 +174,32 @@ if (cmd === 'start') {
             } catch (e) {
                 var pdfFileHandle = fs.createWriteStream(pdfFile);
                 process.stdout.write(`- Download: ${pdfUrl}\n`);
-                request(pdfUrl).pipe(pdfFileHandle).on('close', () =>
-                    process.stdout.write(`- Written: ${pdfFile}\n`));
+                request(pdfUrl).pipe(pdfFileHandle).on('close', () => {
+                    process.stdout.write(`- Written: ${pdfFile}\n`);
+                    open(`file://${pdfFile}`);
+                });
             }
 
-            process.stdout.write(`- Download: ${testsUrl}\n`);
-            request({
-                url: testsUrl,
-                encoding: null
-            }, (error, response, body) => {
-                if (error) { throw new Error(error); }
-                var zip = new AdmZip(body);
+            try {
+                let inputStat = fs.statSync(path.join(dir, 'input'));
+            } catch (e) {
+                process.stdout.write(`- Download: ${testsUrl}\n`);
+                request({
+                    url: testsUrl,
+                    encoding: null
+                }, (error, response, body) => {
+                    if (error) { throw new Error(error); }
+                    var zip = new AdmZip(body);
 
-                var zipEntries = zip.getEntries();
-                console.log('- Extracting test cases:');
-                for (var i = 0; i < zipEntries.length; i++) {
-                    console.log(`  * ${zipEntries[i].entryName}`);
-                }
+                    var zipEntries = zip.getEntries();
+                    console.log('- Extracting test cases:');
+                    for (var i = 0; i < zipEntries.length; i++) {
+                        console.log(`  * ${zipEntries[i].entryName}`);
+                    }
 
-                zip.extractAllTo(dir, true);
-            });
+                    zip.extractAllTo(dir, true);
+                });
+            }
         }
     });
 
@@ -192,7 +241,9 @@ if (engine.cmd === 'node') {
         let consoleLog = console.log;
         run = input => {
             let runOutput = [];
-            console.log = s => runOutput.push(s);
+            console.log = function() {
+                runOutput.push(Array.prototype.slice.apply(arguments).join(' '));
+            };
             module(input.toString());
             console.log = consoleLog;
             return runOutput.join('\n');
@@ -239,10 +290,13 @@ function runOnInputFile(inputFile) {
         process.stdout.write(' √\n');
     } else {
         process.stdout.write(` [WRONG]
-${inputFile}
+## --- INPUT ----
+${input}
 
+## --- OUTPUT ---
 ${runOutput}
- -- should be --
+
+## --- SHOULD BE ---
 ${output}
 
 `);
