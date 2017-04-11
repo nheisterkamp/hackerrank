@@ -124,6 +124,17 @@ if (cmd === 'start') {
                 throw new Error(`Language "${engineName}" not allowed for challenge`);
             }
 
+            const track = model.track;
+            const subDir = path.join('domains', track.track_slug, track.slug, model.slug);
+            const absDir = path.join(process.cwd(), subDir);
+
+            // create the dir structure ASAP
+            // so that the user can complete or fix manually if needed
+            process.stdout.write(`Project: ${absDir}\n`);
+            mkdirp.sync(absDir);
+            mkdirp.sync(path.join(absDir, 'input');
+            mkdirp.sync(path.join(absDir, 'output');
+
             let tpl = _.compact([
                 model[`${engineName}_template_head`],
                 model[`${engineName}_template`],
@@ -135,18 +146,6 @@ if (cmd === 'start') {
             if (onboarding && onboarding.solution) {
                 tpl = onboarding.solution;
             }
-
-            let track = model.track;
-
-            let dir = path.join(process.cwd(), 'domains',
-                track.track_slug, track.slug, model.slug);
-
-            mkdirp.sync(dir);
-
-            process.stdout.write(`Project: ${dir}\n`);
-
-            let file = path.join(dir, engine.main);
-            let pdfFile = path.join(dir, 'README.pdf');
 
             if (!tpl && engine.src) {
                 tpl = engine.src;
@@ -163,6 +162,10 @@ if (cmd === 'start') {
                     tpl += '\nmodule.exports = processData;\n'
             }
 
+            let file = path.join(absDir, engine.main);
+            let soluceFile = path.join(absDir, 'soluce_' + engine.main);
+            let pdfFile = path.join(absDir, 'README.pdf');
+
             try {
                 let fileStat = fs.statSync(file);
                 if (!fileStat.size) { throw new Error(`Empty ${file}`); }
@@ -170,10 +173,10 @@ if (cmd === 'start') {
                 fs.writeFileSync(file, tpl);
                 process.stdout.write(`- Written: ${file}\n`);
             }
-            require('child_process').exec(`subl "${dir}" "${file}"`);
+            require('child_process').exec(`subl "${absDir}" "${file}"`);
 
             if (model.body_html) {
-                fs.writeFileSync(path.join(dir, 'README.html'), model.body_html);
+                fs.writeFileSync(path.join(absDir, 'README.html'), model.body_html);
             }
 
             try {
@@ -189,7 +192,7 @@ if (cmd === 'start') {
             }
 
             try {
-                let inputStat = fs.statSync(path.join(dir, 'input'));
+                let inputStat = fs.statSync(path.join(absDir, 'input'));
             } catch (e) {
                 process.stdout.write(`- Download: ${testsUrl}\n`);
                 request({
@@ -205,7 +208,7 @@ if (cmd === 'start') {
                         console.log(`  * ${zipEntries[i].entryName}`);
                     }
 
-                    zip.extractAllTo(dir, true);
+                    zip.extractAllTo(absDir, true);
                 });
             }
         }
