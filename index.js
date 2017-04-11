@@ -100,6 +100,7 @@ if (cmd === 'start') {
     if (!engine) {
         throw new Error(`Engine "${engineName}" not found`);
     }
+    console.log(`Engine: ${engineName}`);
 
     let challenge = process.argv[4].replace(/^(.*\/)/, '').replace(/([^\w\d-].*)$/, '');
     console.log(`Challenge: ${challenge}`);
