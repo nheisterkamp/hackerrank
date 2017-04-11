@@ -134,125 +134,124 @@ if (cmd === 'start') {
             throw new Error(error);
         if (response.statusCode !== 200)
             throw new Error(`Error, server responded with ${response.statusCode}!`);
-        if (response.statusCode === 200) {
-            let res = JSON.parse(body);
-            let { model } = res;
 
-            if (model.languages.indexOf(engineName) === -1) {
-                throw new Error(`Language "${engineName}" not allowed for challenge`);
-            }
+        let res = JSON.parse(body);
+        let { model } = res;
 
-            const track = model.track;
-            const subDir = path.join('domains', track.track_slug, track.slug, model.slug);
-            const absDir = path.join(process.cwd(), subDir);
+        if (model.languages.indexOf(engineName) === -1) {
+            throw new Error(`Language "${engineName}" not allowed for challenge`);
+        }
 
-            // create the dir structure ASAP
-            // so that the user can complete or fix manually if needed
-            process.stdout.write(`Project: ${absDir}\n`);
-            mkdirp.sync(absDir);
-            mkdirp.sync(path.join(absDir, 'input'));
-            mkdirp.sync(path.join(absDir, 'output'));
+        const track = model.track;
+        const subDir = path.join('domains', track.track_slug, track.slug, model.slug);
+        const absDir = path.join(process.cwd(), subDir);
 
-            // write current test path in a root file, useful for live-reload
-            fs.writeFileSync('.current', subDir);
+        // create the dir structure ASAP
+        // so that the user can complete or fix manually if needed
+        process.stdout.write(`Project: ${absDir}\n`);
+        mkdirp.sync(absDir);
+        mkdirp.sync(path.join(absDir, 'input'));
+        mkdirp.sync(path.join(absDir, 'output'));
 
-            let tpl = _.compact([
-                model[`${engineName}_template_head`],
-                model[`${engineName}_template`],
-                model[`${engineName}_template_tail`]
-            ]).join('\n');
-            if (!tpl && engine.src) {
-                console.info('No template? Using a default.')
-                tpl = engine.src;
-            }
+        // write current test path in a root file, useful for live-reload
+        fs.writeFileSync('.current', subDir);
 
-            if (engineName === 'javascript') {
-                // order is important!
+        let tpl = _.compact([
+            model[`${engineName}_template_head`],
+            model[`${engineName}_template`],
+            model[`${engineName}_template_tail`]
+        ]).join('\n');
+        if (!tpl && engine.src) {
+            console.info('No template? Using a default.')
+            tpl = engine.src;
+        }
 
-                // use strict, useful to catch idiot bugs
-                tpl = '"use strict";\n\n' + tpl
+        if (engineName === 'javascript') {
+            // order is important!
 
-                // make the template executable as a script
-                tpl = '#!/usr/bin/env node\n' + tpl
+            // use strict, useful to catch idiot bugs
+            tpl = '"use strict";\n\n' + tpl
 
-                // expose the processData() function but only if present
-                if (tpl.includes('processData'))
-                    tpl += '\nmodule.exports = processData;\n'
-            }
+            // make the template executable as a script
+            tpl = '#!/usr/bin/env node\n' + tpl
 
-            const mainFile = path.join(absDir, engine.main);
-            const pdfFile = path.join(absDir, 'README.pdf');
+            // expose the processData() function but only if present
+            if (tpl.includes('processData'))
+                tpl += '\nmodule.exports = processData;\n'
+        }
 
+        const mainFile = path.join(absDir, engine.main);
+        const pdfFile = path.join(absDir, 'README.pdf');
+
+        try {
+            writeFileSyncWithoutOverwriting(mainFile, tpl)
+            // for sublime text
+            require('child_process').exec(`subl "${absDir}" "${mainFile}"`);
+        }
+        catch (e) {
+            console.error(e)
+        }
+
+        if (model.body_html) {
             try {
-                writeFileSyncWithoutOverwriting(mainFile, tpl)
-                // for sublime text
-                require('child_process').exec(`subl "${absDir}" "${mainFile}"`);
+                fs.writeFileSync(path.join(absDir, 'README.html'), model.body_html);
+                process.stdout.write(`* Written: README.html\n`);
             }
             catch (e) {
                 console.error(e)
             }
+        }
 
-            if (model.body_html) {
+        try {
+            const pdfFileHandle = fs.createWriteStream(pdfFile);
+            process.stdout.write(`* Downloading PDF instructions: ${pdfUrl}\n`);
+            request(pdfUrl)
+                .pipe(pdfFileHandle)
+                .on('close', () => {
+                    process.stdout.write(`* Written: ${pdfFile}\n`);
+                    open(`file://${pdfFile}`);
+                });
+        }
+        catch (e) {
+            console.error(e)
+        }
+
+            process.stdout.write(`* Downloading test cases: ${testsUrl}\n`);
+            request({
+                url: testsUrl,
+                encoding: null
+            }, (error, response, body) => {
+                setTimeout(() => {
+                    // create empty testcases to speed up the user's own debugging
+                    console.log('* adding empty testcases:')
+                    for(let i = 95; i < 100; ++i) {
+                        writeFileSyncWithoutOverwriting(path.join(absDir, 'input', `input${i}.txt`), 'TODO');
+                        writeFileSyncWithoutOverwriting(path.join(absDir, 'output', `output${i}.txt`), 'TODO');
+                    }
+                })
                 try {
-                    fs.writeFileSync(path.join(absDir, 'README.html'), model.body_html);
-                    process.stdout.write(`* Written: README.html\n`);
+                    if (error) { throw new Error(error); }
+                    const zip = new AdmZip(body);
+                    const zipEntries = zip.getEntries();
+                    console.log('* Extracting test cases:');
+                    for (let i = 0; i < zipEntries.length; i++) {
+                        console.log(`  * "${zipEntries[i].entryName}"`);
+                    }
+                    zip.extractAllTo(absDir, true);
                 }
                 catch (e) {
-                    console.error(e)
+                    console.error(e);
                 }
-            }
+            });
 
-            try {
-                const pdfFileHandle = fs.createWriteStream(pdfFile);
-                process.stdout.write(`* Downloading PDF instructions: ${pdfUrl}\n`);
-                request(pdfUrl)
-                    .pipe(pdfFileHandle)
-                    .on('close', () => {
-                        process.stdout.write(`* Written: ${pdfFile}\n`);
-                        open(`file://${pdfFile}`);
-                    });
-            }
-            catch (e) {
-                console.error(e)
-            }
-
-                process.stdout.write(`* Downloading test cases: ${testsUrl}\n`);
-                request({
-                    url: testsUrl,
-                    encoding: null
-                }, (error, response, body) => {
-                    setTimeout(() => {
-                        // create empty testcases to speed up the user's own debugging
-                        console.log('* adding empty testcases:')
-                        for(let i = 95; i < 100; ++i) {
-                            writeFileSyncWithoutOverwriting(path.join(absDir, 'input', `input${i}.txt`), 'TODO');
-                            writeFileSyncWithoutOverwriting(path.join(absDir, 'output', `output${i}.txt`), 'TODO');
-                        }
-                    })
-                    try {
-                        if (error) { throw new Error(error); }
-                        const zip = new AdmZip(body);
-                        const zipEntries = zip.getEntries();
-                        console.log('* Extracting test cases:');
-                        for (let i = 0; i < zipEntries.length; i++) {
-                            console.log(`  * "${zipEntries[i].entryName}"`);
-                        }
-                        zip.extractAllTo(absDir, true);
-                    }
-                    catch (e) {
-                        console.error(e);
-                    }
-                });
-
-            const onboardingData = model.onboarding && model.onboarding[engineName];
-            if (onboardingData && onboardingData.solution) {
-                // solutions are sometime outdated and don't match the i/o of the empty template
-                // so we should rather write it separately
-                const soluceFile = path.join(absDir, 'soluce_' + engine.main);
-                console.log('* there is a solution, writing it separately...');
-                fs.writeFileSync(soluceFile, onboardingData.solution);
-                process.stdout.write(` * Written: ${soluceFile}\n`);
-            }
+        const onboardingData = model.onboarding && model.onboarding[engineName];
+        if (onboardingData && onboardingData.solution) {
+            // solutions are sometime outdated and don't match the i/o of the empty template
+            // so we should rather write it separately
+            const soluceFile = path.join(absDir, 'soluce_' + engine.main);
+            console.log('* there is a solution, writing it separately...');
+            fs.writeFileSync(soluceFile, onboardingData.solution);
+            process.stdout.write(` * Written: ${soluceFile}\n`);
         }
     });
 
