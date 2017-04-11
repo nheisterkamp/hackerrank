@@ -137,8 +137,8 @@ if (cmd === 'start') {
             // so that the user can complete or fix manually if needed
             process.stdout.write(`Project: ${absDir}\n`);
             mkdirp.sync(absDir);
-            mkdirp.sync(path.join(absDir, 'input');
-            mkdirp.sync(path.join(absDir, 'output');
+            mkdirp.sync(path.join(absDir, 'input'));
+            mkdirp.sync(path.join(absDir, 'output'));
 
             // write current test path in a root file, useful for live-reload
             fs.writeFileSync('.current', subDir);
