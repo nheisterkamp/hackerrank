@@ -80,6 +80,23 @@ if (Number(process.version[1]) < 6) {
     throw new Error('Use node >= v6');
 }
 
+function writeFileSyncWithoutOverwriting(filePath, content) {
+    try {
+        if (fs.existsSync(filePath)) {
+            let fileStat = fs.statSync(filePath);
+            if (fileStat.size) {
+                console.error(`! ${filePath} exists and is not empty , I don't dare to overwrite...`);
+                return;
+            }
+        }
+        fs.writeFileSync(filePath, content);
+        process.stdout.write(`* Written: ${filePath}\n`);
+    }
+    catch (e) {
+        console.error(e)
+    }
+}
+
 const fs = require('fs'),
     path = require('path'),
     spawnSync = require('child_process').spawnSync,
@@ -168,13 +185,7 @@ if (cmd === 'start') {
             const pdfFile = path.join(absDir, 'README.pdf');
 
             try {
-                if (fs.existsSync(mainFile)) {
-                    let fileStat = fs.statSync(mainFile);
-                    if (fileStat.size)
-                        throw new Error(`Not empty ${mainFile}, I don't dare to overwrite...`);
-                }
-                fs.writeFileSync(mainFile, tpl);
-                process.stdout.write(`* Written: ${mainFile}\n`);
+                writeFileSyncWithoutOverwriting(mainFile, tpl)
                 // for sublime text
                 require('child_process').exec(`subl "${absDir}" "${mainFile}"`);
             }
@@ -206,24 +217,33 @@ if (cmd === 'start') {
                 console.error(e)
             }
 
-            try {
                 process.stdout.write(`* Downloading test cases: ${testsUrl}\n`);
                 request({
                     url: testsUrl,
                     encoding: null
                 }, (error, response, body) => {
-                    if (error) { throw new Error(error); }
-                    const zip = new AdmZip(body);
-                    const zipEntries = zip.getEntries();
-                    console.log('* Extracting test cases:');
-                    for (let i = 0; i < zipEntries.length; i++) {
-                        console.log(`  * "${zipEntries[i].entryName}"`);
+                    setTimeout(() => {
+                        // create empty testcases to speed up the user's own debugging
+                        console.log('* adding empty testcases:')
+                        for(let i = 95; i < 100; ++i) {
+                            writeFileSyncWithoutOverwriting(path.join(absDir, 'input', `input${i}.txt`), 'TODO');
+                            writeFileSyncWithoutOverwriting(path.join(absDir, 'output', `output${i}.txt`), 'TODO');
+                        }
+                    })
+                    try {
+                        if (error) { throw new Error(error); }
+                        const zip = new AdmZip(body);
+                        const zipEntries = zip.getEntries();
+                        console.log('* Extracting test cases:');
+                        for (let i = 0; i < zipEntries.length; i++) {
+                            console.log(`  * "${zipEntries[i].entryName}"`);
+                        }
+                        zip.extractAllTo(absDir, true);
                     }
-                    zip.extractAllTo(absDir, true);
+                    catch (e) {
+                        console.error(e);
+                    }
                 });
-            } catch (e) {
-                console.error(e)
-            }
 
             const onboardingData = model.onboarding && model.onboarding[engineName];
             if (onboardingData && onboardingData.solution) {
