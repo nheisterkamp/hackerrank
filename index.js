@@ -135,6 +135,9 @@ if (cmd === 'start') {
             mkdirp.sync(path.join(absDir, 'input');
             mkdirp.sync(path.join(absDir, 'output');
 
+            // write current test path in a root file, useful for live-reload
+            fs.writeFileSync('.current', subDir);
+
             let tpl = _.compact([
                 model[`${engineName}_template_head`],
                 model[`${engineName}_template`],
