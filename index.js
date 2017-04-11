@@ -109,12 +109,12 @@ if (cmd === 'start') {
         throw new Error(`No challenge found in "${process.argv[4]}`);
     }
 
-    let base = 'https://www.hackerrank.com/rest/contests/master/challenges';
-    let restUrl = `${base}/${challenge}`;
-    let pdfUrl = `${base}/${challenge}/download_pdf?language=English`;
-    let testsUrl = `${base}/${challenge}/download_testcases`;
+    const base = 'https://www.hackerrank.com/rest/contests/master/challenges';
+    const RESTUrl = `${base}/${challenge}`;
+    const pdfUrl = `${base}/${challenge}/download_pdf?language=English`;
+    const testsUrl = `${base}/${challenge}/download_testcases`;
 
-    request(restUrl, (error, response, body) => {
+    request(RESTUrl, (error, response, body) => {
         if (error) { throw new Error(error); }
         if (!error && response.statusCode == 200) {
             let res = JSON.parse(body);
