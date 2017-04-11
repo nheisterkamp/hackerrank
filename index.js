@@ -19,7 +19,6 @@
 
 
 
-// Engines
 const engines = {
     javascript: {
         main: 'main.js',
@@ -105,17 +104,14 @@ const fs = require('fs'),
     request = require('request'),
     mkdirp = require('mkdirp'),
     AdmZip = require('adm-zip'),
-    open = require("open"),
-    EPSILON = 10e-2;
+    open = require("open");
 
 const cmd = process.argv[2];
-
 if (cmd === 'start') {
     console.log('\nDownloading a HackerRank exercise...')
 
     let engineName = process.argv[3].toLowerCase();
     let engine = engines[engineName];
-
     if (!engine) {
         throw new Error(`Engine "${engineName}" is not supported by this tool!`);
     }
@@ -208,11 +204,11 @@ if (cmd === 'start') {
 
             try {
                 const pdfFileHandle = fs.createWriteStream(pdfFile);
-                process.stdout.write(`- Downloading PDF instructions: ${pdfUrl}\n`);
+                process.stdout.write(`* Downloading PDF instructions: ${pdfUrl}\n`);
                 request(pdfUrl)
                     .pipe(pdfFileHandle)
                     .on('close', () => {
-                        process.stdout.write(`- Written: ${pdfFile}\n`);
+                        process.stdout.write(`* Written: ${pdfFile}\n`);
                         open(`file://${pdfFile}`);
                     });
             }
