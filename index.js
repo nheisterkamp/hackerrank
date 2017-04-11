@@ -31,7 +31,7 @@ const engines = {
 
 process.stdin.resume();
 process.stdin.setEncoding("ascii");
-_input = "";
+let _input = "";
 process.stdin.on("data", function (input) {
     _input += input;
 });
