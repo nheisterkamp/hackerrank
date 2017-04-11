@@ -171,10 +171,13 @@ if (cmd === 'start') {
             }
 
             if (engineName === 'javascript') {
-                // make the template executable as a script
-                tpl = '#!/usr/bin/env node\n' + tpl
+                // order is important!
+
                 // use strict, useful to catch idiot bugs
                 tpl = '"use strict";\n\n' + tpl
+
+                // make the template executable as a script
+                tpl = '#!/usr/bin/env node\n' + tpl
 
                 // expose the processData() function but only if present
                 if (tpl.includes('processData'))
