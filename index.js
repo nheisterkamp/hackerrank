@@ -153,7 +153,14 @@ if (cmd === 'start') {
             }
 
             if (engineName === 'javascript') {
-                tpl += '\nmodule.exports = processData;\n'
+                // make the template executable as a script
+                tpl = '#!/usr/bin/env node\n' + tpl
+                // use strict, useful to catch idiot bugs
+                tpl = '"use strict";\n\n' + tpl
+
+                // expose the processData() function but only if present
+                if (tpl.includes('processData'))
+                    tpl += '\nmodule.exports = processData;\n'
             }
 
             try {
