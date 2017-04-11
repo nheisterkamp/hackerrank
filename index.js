@@ -94,17 +94,18 @@ const fs = require('fs'),
 const cmd = process.argv[2];
 
 if (cmd === 'start') {
+    console.log('\nDownloading a HackerRank exercise...')
+
     let engineName = process.argv[3].toLowerCase();
     let engine = engines[engineName];
 
     if (!engine) {
-        throw new Error(`Engine "${engineName}" not found`);
+        throw new Error(`Engine "${engineName}" is not supported by this tool!`);
     }
-    console.log(`Engine: ${engineName}`);
+    console.log(`* Engine: ${engineName}`);
 
     let challenge = process.argv[4].replace(/^(.*\/)/, '').replace(/([^\w\d-].*)$/, '');
-    console.log(`Challenge: ${challenge}`);
-
+    console.log(`* Challenge: ${challenge}`);
     if (!challenge) {
         throw new Error(`No challenge found in "${process.argv[4]}`);
     }
@@ -114,9 +115,13 @@ if (cmd === 'start') {
     const pdfUrl = `${base}/${challenge}/download_pdf?language=English`;
     const testsUrl = `${base}/${challenge}/download_testcases`;
 
+    console.log('* calling API...')
     request(RESTUrl, (error, response, body) => {
-        if (error) { throw new Error(error); }
-        if (!error && response.statusCode == 200) {
+        if (error)
+            throw new Error(error);
+        if (response.statusCode !== 200)
+            throw new Error(`Error, server responded with ${response.statusCode}!`);
+        if (response.statusCode === 200) {
             let res = JSON.parse(body);
             let { model } = res;
 
@@ -144,6 +149,7 @@ if (cmd === 'start') {
                 model[`${engineName}_template_tail`]
             ]).join('\n');
             if (!tpl && engine.src) {
+                console.info('No template? Using a default.')
                 tpl = engine.src;
             }
 
@@ -188,7 +194,7 @@ if (cmd === 'start') {
 
             try {
                 const pdfFileHandle = fs.createWriteStream(pdfFile);
-                process.stdout.write(`- Downloading: ${pdfUrl}\n`);
+                process.stdout.write(`- Downloading PDF instructions: ${pdfUrl}\n`);
                 request(pdfUrl)
                     .pipe(pdfFileHandle)
                     .on('close', () => {
@@ -201,7 +207,7 @@ if (cmd === 'start') {
             }
 
             try {
-                process.stdout.write(`- Downloading: ${testsUrl}\n`);
+                process.stdout.write(`* Downloading test cases: ${testsUrl}\n`);
                 request({
                     url: testsUrl,
                     encoding: null
@@ -209,9 +215,9 @@ if (cmd === 'start') {
                     if (error) { throw new Error(error); }
                     const zip = new AdmZip(body);
                     const zipEntries = zip.getEntries();
-                    console.log('- Extracting test cases:');
+                    console.log('* Extracting test cases:');
                     for (let i = 0; i < zipEntries.length; i++) {
-                        console.log(`  * ${zipEntries[i].entryName}`);
+                        console.log(`  * "${zipEntries[i].entryName}"`);
                     }
                     zip.extractAllTo(absDir, true);
                 });
@@ -224,9 +230,9 @@ if (cmd === 'start') {
                 // solutions are sometime outdated and don't match the i/o of the empty template
                 // so we should rather write it separately
                 const soluceFile = path.join(absDir, 'soluce_' + engine.main);
-                console.log('there is a solution, writing it separately...');
+                console.log('* there is a solution, writing it separately...');
                 fs.writeFileSync(soluceFile, onboardingData.solution);
-                process.stdout.write(`- Written: ${soluceFile}\n`);
+                process.stdout.write(` * Written: ${soluceFile}\n`);
             }
         }
     });
